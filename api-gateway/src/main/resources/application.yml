@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: ApiGateway
+
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+            # Disaridan gelen /api/auth/** istekleri User Service'e yonlendirilir
+            - id: user-service
+              uri: ${SERVICES_USER_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/auth/**,/api/users/**
+
+            - id: product-service
+              uri: ${SERVICES_PRODUCT_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/products/**
+
+            - id: order-service
+              uri: ${SERVICES_ORDER_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/orders/**
+
+            - id: notification-service
+              uri: ${SERVICES_NOTIFICATION_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/notifications/**
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO

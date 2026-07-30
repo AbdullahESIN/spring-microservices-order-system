@@ -1,0 +1,66 @@
+name: Docker Image Yayinla
+
+# Sadece main dalina push olunca calisir.
+# Amac: her servisin Docker imajini olusturup GitHub Container Registry'ye (GHCR) gondermek.
+on:
+  push:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    # GHCR'a yazabilmek icin gereken izinler.
+    # Ayrica bir secret tanimlamaya gerek yok: GITHUB_TOKEN otomatik gelir.
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - product-service
+          - user-service
+          - order-service
+          - notification-service
+          - api-gateway
+
+    steps:
+      - name: Kodu indir
+        uses: actions/checkout@v4
+
+      - name: Docker Buildx kur
+        uses: docker/setup-buildx-action@v3
+
+      - name: GHCR'a giris yap
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Imaj etiketlerini hazirla
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}
+          # Hem "latest" hem de commit SHA'si ile etiketle.
+          # SHA etiketi sayesinde hangi imajin hangi koddan ciktigi kesin bilinir.
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Imaji olustur ve gonder
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # GitHub Actions onbellegi: bagimliliklar her seferinde yeniden indirilmez
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,118 @@
+services:
+
+  # ---------------------------------------------------------------
+  # VERITABANLARI
+  # Her mikroservisin KENDI veritabani var (database-per-service).
+  # Servisler birbirinin tablosuna asla dogrudan erisemez; sadece
+  # REST API uzerinden konusurlar. Mikroservisin temel kurali budur.
+  # ---------------------------------------------------------------
+  product-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: productdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - product-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  user-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: userdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  order-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: orderdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------------------------------------------------------------
+  # SERVISLER
+  # Adres olarak "localhost" degil servis adlari kullaniliyor
+  # (ornegin http://user-service:8082). Docker kendi ic DNS'i ile
+  # bu adlari container IP'lerine cevirir.
+  # ---------------------------------------------------------------
+  product-service:
+    build: ./product-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://product-db:5432/productdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      product-db:
+        condition: service_healthy
+
+  user-service:
+    build: ./user-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://user-db:5432/userdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      JWT_SECRET: ${JWT_SECRET:-bu-cok-gizli-bir-anahtar-en-az-256-bit-olmali-1234567890}
+    depends_on:
+      user-db:
+        condition: service_healthy
+
+  notification-service:
+    build: ./notification-service
+
+  order-service:
+    build: ./order-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://order-db:5432/orderdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SERVICES_USER_URL: http://user-service:8082
+      SERVICES_PRODUCT_URL: http://product-service:8081
+      SERVICES_NOTIFICATION_URL: http://notification-service:8084
+    depends_on:
+      order-db:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      product-service:
+        condition: service_started
+
+  # Disariya acilan TEK port: 8080.
+  # Diger servisler sadece Docker agi icinden erisilebilir durumda.
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      SERVICES_USER_URL: http://user-service:8082
+      SERVICES_PRODUCT_URL: http://product-service:8081
+      SERVICES_ORDER_URL: http://order-service:8083
+      SERVICES_NOTIFICATION_URL: http://notification-service:8084
+    depends_on:
+      - user-service
+      - product-service
+      - order-service
+      - notification-service
+
+volumes:
+  product-db-data:
+  user-db-data:
+  order-db-data:

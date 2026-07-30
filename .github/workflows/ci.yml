@@ -1,0 +1,52 @@
+name: CI
+
+# Ne zaman calisir:
+#  - main/develop dallarina her push'ta
+#  - main'e acilan her pull request'te
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Derle ve test et (${{ matrix.service }})
+    runs-on: ubuntu-latest
+
+    # Matrix stratejisi: ayni adimlar 5 servis icin PARALEL calisir.
+    # Tek tek 5 job yazmak yerine tek tanim yeterli.
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - product-service
+          - user-service
+          - order-service
+          - notification-service
+          - api-gateway
+
+    steps:
+      - name: Kodu indir
+        uses: actions/checkout@v4
+
+      - name: JDK 21 kur
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          # Maven bagimliliklarini onbellege alir; sonraki calismalar cok daha hizli
+          cache: maven
+
+      - name: Derle ve testleri calistir
+        working-directory: ./${{ matrix.service }}
+        run: ./mvnw -B verify
+
+      - name: Test raporlarini yukle
+        # always(): testler basarisiz olsa BILE raporlari yukle ki hatayi gorebilelim
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.service }}
+          path: ${{ matrix.service }}/target/surefire-reports/
+          if-no-files-found: ignore

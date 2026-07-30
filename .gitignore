@@ -1,0 +1,28 @@
+### Maven ###
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### IDE ###
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+bin/
+
+### Isletim sistemi ###
+.DS_Store
+Thumbs.db
+desktop.ini
+
+### Loglar ###
+*.log
+
+### Ortam degiskenleri - ASLA commit edilmemeli ###
+.env
+.env.local
