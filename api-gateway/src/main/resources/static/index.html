@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mikroservis Siparis Sistemi — Kontrol Paneli</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #171d2c;
+    --panel-2: #1e2637;
+    --border: #2a3348;
+    --text: #e4e8f1;
+    --muted: #8b96ad;
+    --accent: #4f9cf9;
+    --green: #3fcf8e;
+    --amber: #f5a623;
+    --red: #f4585b;
+    --purple: #a78bfa;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  header {
+    background: linear-gradient(180deg, #1a2234, var(--panel));
+    border-bottom: 1px solid var(--border);
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  header h1 { margin: 0; font-size: 17px; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  .health { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 11px; font-size: 11.5px;
+    font-family: var(--mono);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.up { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.down { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 20px 24px 60px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card h2 {
+    margin: 0 0 3px; font-size: 14px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card .svc {
+    font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 1px 7px; border-radius: 4px; font-weight: 400;
+  }
+  .card .hint { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input, select {
+    width: 100%; padding: 8px 10px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; font-family: inherit;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+
+  button {
+    background: var(--accent); color: #08111f; border: 0;
+    padding: 8px 14px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; font-weight: 600; font-family: inherit;
+  }
+  button:hover { filter: brightness(1.12); }
+  button:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+  button.ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); font-weight: 500; }
+  button.danger { background: transparent; color: var(--red); border: 1px solid var(--red); font-weight: 500; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
+  .token {
+    font-family: var(--mono); font-size: 10.5px; color: var(--green);
+    background: #0c1a14; border: 1px solid #1d4636; border-radius: 6px;
+    padding: 8px 10px; margin-top: 12px; word-break: break-all; line-height: 1.45;
+  }
+  .whoami { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  .whoami b { color: var(--text); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 10px; }
+  th {
+    text-align: left; color: var(--muted); font-weight: 500; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .04em;
+    padding: 6px 8px; border-bottom: 1px solid var(--border);
+  }
+  td { padding: 7px 8px; border-bottom: 1px solid #212a3d; }
+  tr:last-child td { border-bottom: 0; }
+  .num { font-family: var(--mono); }
+  .stock-low { color: var(--amber); }
+  .stock-zero { color: var(--red); }
+  .empty { color: var(--muted); font-size: 12.5px; padding: 14px 0; text-align: center; }
+
+  /* Siparis zinciri gorsellestirmesi */
+  .chain { margin-top: 14px; }
+  .step {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 7px 0; opacity: .35; transition: opacity .25s;
+  }
+  .step.active { opacity: 1; }
+  .step.done { opacity: 1; }
+  .step-num {
+    flex: none; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--panel-2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10.5px; font-family: var(--mono); color: var(--muted);
+  }
+  .step.done .step-num { background: var(--green); border-color: var(--green); color: #08111f; font-weight: 700; }
+  .step.failed .step-num { background: var(--red); border-color: var(--red); color: #fff; font-weight: 700; }
+  .step.failed { opacity: 1; }
+  .step-body { flex: 1; min-width: 0; }
+  .step-title { font-size: 12.5px; }
+  .step-detail { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+
+  /* Istek gunlugu */
+  .log {
+    font-family: var(--mono); font-size: 11.5px;
+    max-height: 340px; overflow-y: auto;
+    margin-top: 10px;
+  }
+  .log-row {
+    display: grid; grid-template-columns: 58px 1fr auto auto;
+    gap: 10px; align-items: center;
+    padding: 6px 8px; border-bottom: 1px solid #212a3d;
+  }
+  .log-row:hover { background: var(--panel-2); }
+  .method { font-weight: 700; font-size: 10.5px; }
+  .m-GET { color: var(--accent); }
+  .m-POST { color: var(--green); }
+  .m-PUT { color: var(--amber); }
+  .m-DELETE { color: var(--red); }
+  .path { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge {
+    font-size: 10px; padding: 1px 6px; border-radius: 4px;
+    border: 1px solid var(--border); color: var(--muted); white-space: nowrap;
+  }
+  .b-product { color: var(--accent); border-color: #24466e; background: #0f1d2e; }
+  .b-user { color: var(--purple); border-color: #443a68; background: #191530; }
+  .b-order { color: var(--green); border-color: #1d4636; background: #0c1a14; }
+  .b-notification { color: var(--amber); border-color: #5c451a; background: #241c0c; }
+  .status { font-size: 10.5px; font-weight: 700; }
+  .s-ok { color: var(--green); }
+  .s-err { color: var(--red); }
+
+  .toast {
+    position: fixed; bottom: 22px; right: 22px; z-index: 50;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 12px 16px; max-width: 380px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.45);
+    font-size: 13px; animation: slide .22s ease;
+  }
+  .toast.ok { border-left-color: var(--green); }
+  .toast.err { border-left-color: var(--red); }
+  .toast .t-title { font-weight: 600; margin-bottom: 2px; }
+  .toast .t-msg { color: var(--muted); font-size: 12px; font-family: var(--mono); }
+  @keyframes slide { from { transform: translateX(20px); opacity: 0; } }
+
+  .note {
+    background: #131b2b; border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 6px; padding: 10px 12px; font-size: 12px; color: var(--muted);
+    margin-top: 12px; line-height: 1.55;
+  }
+  .note b { color: var(--text); font-weight: 600; }
+
+  .full { grid-column: 1 / -1; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 820px) { .split { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Mikroservis Siparis Yonetim Sistemi</h1>
+    <div class="sub">Tum istekler API Gateway (:8080) uzerinden gecer — asagidaki gunlukte hangi servise gittigini gorebilirsin</div>
+  </div>
+  <div class="health" id="health"></div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+
+    <!-- KIMLIK -->
+    <div class="card">
+      <h2>1 · Kimlik <span class="svc">user-service :8082</span></h2>
+      <p class="hint">Parola BCrypt ile hash'lenir, giriste JWT uretilir.</p>
+
+      <label>Kullanici adi</label>
+      <input id="username" value="abdullah" autocomplete="off">
+      <label>E-posta <span style="opacity:.6">(sadece kayit icin)</span></label>
+      <input id="email" value="abdullah@example.com" autocomplete="off">
+      <label>Parola</label>
+      <input id="password" type="password" value="parola123">
+
+      <div class="row">
+        <button onclick="register()">Kayit ol</button>
+        <button class="ghost" onclick="login()">Giris yap</button>
+        <button class="ghost" onclick="logout()">Cikis</button>
+      </div>
+
+      <div id="authState"></div>
+    </div>
+
+    <!-- URUNLER -->
+    <div class="card">
+      <h2>2 · Urunler <span class="svc">product-service :8081</span></h2>
+      <p class="hint">Kendi PostgreSQL veritabaninda tutulur. Token gerektirmez.</p>
+
+      <label>Urun adi</label>
+      <input id="pName" placeholder="Mekanik Klavye" autocomplete="off">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
+        <div><label>Fiyat (TL)</label><input id="pPrice" type="number" value="1500"></div>
+        <div><label>Stok</label><input id="pStock" type="number" value="10"></div>
+      </div>
+
+      <div class="row">
+        <button onclick="createProduct()">Urun ekle</button>
+        <button class="ghost" onclick="loadProducts()">Yenile</button>
+      </div>
+
+      <div id="productList"></div>
+    </div>
+
+    <!-- SIPARIS -->
+    <div class="card">
+      <h2>3 · Siparis ver <span class="svc">order-service :8083</span></h2>
+      <p class="hint">Projenin kalbi: tek bir istek, arka planda 3 servise REST cagrisi tetikler.</p>
+
+      <label>Urun</label>
+      <select id="orderProduct"></select>
+      <label>Adet</label>
+      <input id="orderQty" type="number" value="1" min="1">
+
+      <div class="row">
+        <button onclick="createOrder()" id="orderBtn">Siparis olustur</button>
+      </div>
+
+      <div class="chain" id="chain"></div>
+    </div>
+
+    <!-- SIPARISLERIM -->
+    <div class="card">
+      <h2>4 · Siparisler <span class="svc">order-service :8083</span></h2>
+      <p class="hint">Siparis kaydi, kullanici ve urun bilgisinin <b>kopyasini</b> tutar — servisler arasi JOIN yoktur.</p>
+
+      <div class="row" style="margin-top:0">
+        <button class="ghost" onclick="loadOrders(true)">Kendi siparislerim</button>
+        <button class="ghost" onclick="loadOrders(false)">Tum siparisler</button>
+      </div>
+
+      <div id="orderList"></div>
+    </div>
+
+    <!-- BILDIRIMLER -->
+    <div class="card">
+      <h2>5 · Bildirimler <span class="svc">notification-service :8084</span></h2>
+      <p class="hint">Kritik olmayan servis: kapali olsa bile siparis basariyla olusur.</p>
+
+      <div class="row" style="margin-top:0">
+        <button class="ghost" onclick="loadNotifications()">Yenile</button>
+      </div>
+
+      <div id="notifList"></div>
+    </div>
+
+    <!-- HATA SENARYOLARI -->
+    <div class="card">
+      <h2>6 · Hata senaryolari</h2>
+      <p class="hint">Mikroserviste asil zor kisim hatalarin dogru kodla donmesi. Dene ve gunlukteki HTTP kodlarina bak.</p>
+
+      <div class="row" style="margin-top:0; flex-direction:column; align-items:stretch">
+        <button class="danger" onclick="testBadToken()">Gecersiz token &rarr; 401 bekleniyor</button>
+        <button class="danger" onclick="testNoProduct()">Olmayan urun &rarr; 404 bekleniyor</button>
+        <button class="danger" onclick="testNoStock()">Yetersiz stok &rarr; 409 bekleniyor</button>
+        <button class="danger" onclick="testBadQty()">Adet 0 &rarr; 400 bekleniyor</button>
+      </div>
+
+      <div class="note">
+        <b>Neden onemli?</b> 404 "sen yanlis istedin", 502 "karsi servis coktu" demek.
+        Ikisini karistirirsan hata ayiklamak imkansiz hale gelir.
+      </div>
+    </div>
+
+    <!-- ISTEK GUNLUGU -->
+    <div class="card full">
+      <h2>Canli istek gunlugu</h2>
+      <p class="hint">
+        Tarayicidan yapilan her HTTP cagrisi. "Servis" sutunu, Gateway'in istegi hangi
+        mikroservise yonlendirdigini gosterir.
+      </p>
+      <div class="row" style="margin-top:0">
+        <button class="ghost" onclick="clearLog()">Gunlugu temizle</button>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------
+// Durum
+// ---------------------------------------------------------------
+let token = null;
+let currentUser = null;
+let products = [];
+
+// Gateway'deki route tanimlarinin aynisi: hangi yol hangi servise gider
+function serviceOf(path) {
+  if (path.startsWith('/api/auth') || path.startsWith('/api/users')) return 'user';
+  if (path.startsWith('/api/products')) return 'product';
+  if (path.startsWith('/api/orders')) return 'order';
+  if (path.startsWith('/api/notifications')) return 'notification';
+  return 'gateway';
+}
+
+// ---------------------------------------------------------------
+// Tum HTTP cagrilari buradan gecer ki gunluge yazabilelim
+// ---------------------------------------------------------------
+async function api(method, path, body, useToken) {
+  const started = performance.now();
+  const headers = {};
+  if (body) headers['Content-Type'] = 'application/json';
+  if (useToken && token) headers['Authorization'] = 'Bearer ' + token;
+
+  let res, data = null, netErr = null;
+  try {
+    res = await fetch(path, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const text = await res.text();
+    if (text) { try { data = JSON.parse(text); } catch { data = text; } }
+  } catch (e) {
+    netErr = e;
+  }
+
+  const ms = Math.round(performance.now() - started);
+  logRequest(method, path, netErr ? 0 : res.status, ms);
+
+  if (netErr) throw { status: 0, message: 'Aga ulasilamadi: ' + netErr.message };
+  if (!res.ok) throw { status: res.status, message: (data && data.message) || (data && data.error) || res.statusText, data };
+  return data;
+}
+
+// ---------------------------------------------------------------
+// Istek gunlugu
+// ---------------------------------------------------------------
+const logEntries = [];
+
+function logRequest(method, path, status, ms) {
+  const svc = serviceOf(path);
+  logEntries.unshift({ method, path, status, ms, svc, at: new Date() });
+  if (logEntries.length > 60) logEntries.pop();
+  renderLog();
+}
+
+function renderLog() {
+  const el = document.getElementById('log');
+  if (!logEntries.length) {
+    el.innerHTML = '<div class="empty">Henuz istek yok. Yukaridaki butonlardan birine bas.</div>';
+    return;
+  }
+  el.innerHTML = logEntries.map(e => `
+    <div class="log-row">
+      <span class="method m-${e.method}">${e.method}</span>
+      <span class="path">${e.path}</span>
+      <span class="badge b-${e.svc}">${e.svc}</span>
+      <span class="status ${e.status >= 200 && e.status < 300 ? 's-ok' : 's-err'}">
+        ${e.status || 'ERR'} · ${e.ms}ms
+      </span>
+    </div>
+  `).join('');
+}
+
+function clearLog() { logEntries.length = 0; renderLog(); }
+
+// ---------------------------------------------------------------
+// Bildirim baloncugu
+// ---------------------------------------------------------------
+let toastTimer;
+function toast(title, msg, kind) {
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const el = document.createElement('div');
+  el.className = 'toast ' + (kind || '');
+  el.innerHTML = `<div class="t-title">${title}</div>` + (msg ? `<div class="t-msg">${msg}</div>` : '');
+  document.body.appendChild(el);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.remove(), 4200);
+}
+
+// ---------------------------------------------------------------
+// 1 · Kimlik
+// ---------------------------------------------------------------
+async function register() {
+  try {
+    const u = await api('POST', '/api/auth/register', {
+      username: val('username'), email: val('email'), password: val('password')
+    });
+    toast('Kayit basarili', `id=${u.id} · ${u.username}`, 'ok');
+  } catch (e) {
+    toast('Kayit basarisiz (HTTP ' + e.status + ')', e.message, 'err');
+  }
+}
+
+async function login() {
+  try {
+    const r = await api('POST', '/api/auth/login', {
+      username: val('username'), password: val('password')
+    });
+    token = r.token;
+    currentUser = { id: r.userId, username: r.username };
+    renderAuth();
+    toast('Giris basarili', 'JWT alindi · ' + r.username, 'ok');
+  } catch (e) {
+    toast('Giris basarisiz (HTTP ' + e.status + ')', e.message, 'err');
+  }
+}
+
+function logout() {
+  token = null; currentUser = null; renderAuth();
+  toast('Cikis yapildi', 'Token silindi');
+}
+
+function renderAuth() {
+  const el = document.getElementById('authState');
+  if (!token) {
+    el.innerHTML = '<div class="whoami">Giris yapilmadi — siparis vermek icin token gerekli.</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="whoami">Giris yapan: <b>${currentUser.username}</b> (id: ${currentUser.id})</div>
+    <div class="token">${token}</div>
+    <div class="note">
+      Bu token her siparis isteginde <b>Authorization</b> basligiyla gonderilir.
+      Order Service onu dogrulamak icin <b>User Service'e ayri bir REST cagrisi</b> yapar.
+    </div>`;
+}
+
+// ---------------------------------------------------------------
+// 2 · Urunler
+// ---------------------------------------------------------------
+async function loadProducts() {
+  try {
+    products = await api('GET', '/api/products');
+    renderProducts();
+    fillProductSelect();
+  } catch (e) {
+    toast('Urunler alinamadi (HTTP ' + e.status + ')', e.message, 'err');
+  }
+}
+
+function renderProducts() {
+  const el = document.getElementById('productList');
+  if (!products.length) { el.innerHTML = '<div class="empty">Henuz urun yok.</div>'; return; }
+  el.innerHTML = `
+    <table>
+      <tr><th>#</th><th>Ad</th><th>Fiyat</th><th>Stok</th></tr>
+      ${products.map(p => `
+        <tr>
+          <td class="num">${p.id}</td>
+          <td>${escapeHtml(p.name)}</td>
+          <td class="num">${p.price.toLocaleString('tr-TR')} TL</td>
+          <td class="num ${p.stockQuantity === 0 ? 'stock-zero' : p.stockQuantity < 5 ? 'stock-low' : ''}">${p.stockQuantity}</td>
+        </tr>`).join('')}
+    </table>`;
+}
+
+function fillProductSelect() {
+  const sel = document.getElementById('orderProduct');
+  const prev = sel.value;
+  sel.innerHTML = products.map(p =>
+    `<option value="${p.id}">#${p.id} — ${escapeHtml(p.name)} (stok: ${p.stockQuantity})</option>`
+  ).join('');
+  if (prev) sel.value = prev;
+}
+
+async function createProduct() {
+  const name = val('pName');
+  if (!name) { toast('Urun adi bos', 'Bos ad gonderirsen 400 alirsin (validasyon)', 'err'); return; }
+  try {
+    const p = await api('POST', '/api/products', {
+      name,
+      description: '',
+      price: Number(val('pPrice')),
+      stockQuantity: Number(val('pStock'))
+    });
+    toast('Urun eklendi', `#${p.id} ${p.name}`, 'ok');
+    document.getElementById('pName').value = '';
+    await loadProducts();
+  } catch (e) {
+    toast('Urun eklenemedi (HTTP ' + e.status + ')', e.message, 'err');
+  }
+}
+
+// ---------------------------------------------------------------
+// 3 · Siparis — zincirin gorsellestirilmesi
+// ---------------------------------------------------------------
+const CHAIN_STEPS = [
+  { t: 'Token dogrulaniyor',      d: 'order-service --> GET /api/auth/validate  (user-service)' },
+  { t: 'Urun bilgisi aliniyor',   d: 'order-service --> GET /api/products/{id}  (product-service)' },
+  { t: 'Stok dusuruluyor',        d: 'order-service --> POST /api/products/{id}/reduce-stock' },
+  { t: 'Siparis kaydediliyor',    d: 'order-service --> kendi PostgreSQL veritabani' },
+  { t: 'Bildirim gonderiliyor',   d: 'order-service --> POST /api/notifications  (kritik degil)' }
+];
+
+function renderChain(state) {
+  document.getElementById('chain').innerHTML = `
+    <div class="note" style="margin-top:0">
+      Tarayici <b>tek bir istek</b> atar (POST /api/orders). Asagidaki adimlar
+      sunucu tarafinda, servisler arasinda gerceklesir.
+    </div>
+    ` + CHAIN_STEPS.map((s, i) => `
+      <div class="step ${state[i] || ''}">
+        <div class="step-num">${state[i] === 'done' ? '&check;' : state[i] === 'failed' ? '!' : i + 1}</div>
+        <div class="step-body">
+          <div class="step-title">${s.t}</div>
+          <div class="step-detail">${s.d}</div>
+        </div>
+      </div>`).join('');
+}
+
+async function createOrder() {
+  if (!token) { toast('Once giris yap', 'Siparis icin JWT gerekli', 'err'); return; }
+  const productId = Number(document.getElementById('orderProduct').value);
+  const quantity = Number(val('orderQty'));
+  if (!productId) { toast('Urun sec', 'Once bir urun ekle', 'err'); return; }
+
+  const before = products.find(p => p.id === productId);
+  const btn = document.getElementById('orderBtn');
+  btn.disabled = true;
+  renderChain(['active', '', '', '', '']);
+
+  try {
+    const order = await api('POST', '/api/orders', { productId, quantity }, true);
+
+    // Zincirin tamamlandigini adim adim gosterelim
+    for (let i = 0; i < 5; i++) {
+      await sleep(120);
+      renderChain(Array(5).fill('').map((_, j) => j <= i ? 'done' : ''));
+    }
+
+    toast('Siparis olusturuldu',
+      `#${order.id} · ${order.productName} x${order.quantity} · ${order.totalPrice.toLocaleString('tr-TR')} TL`, 'ok');
+
+    // KANIT: stok gercekten dustu mu, bildirim gercekten olustu mu?
+    await loadProducts();
+    const after = products.find(p => p.id === productId);
+    if (before && after) {
+      setTimeout(() => toast('Kanit: stok degisti',
+        `${before.stockQuantity} --> ${after.stockQuantity}  (product-service'e yapilan cagri calisti)`, 'ok'), 900);
+    }
+    await loadNotifications();
+    await loadOrders(true);
+
+  } catch (e) {
+    // Hangi adimda dustugunu HTTP koduna bakarak tahmin edelim
+    let failedAt = 0;
+    if (e.status === 401) failedAt = 0;
+    else if (e.status === 404 || e.status === 502) failedAt = 1;
+    else if (e.status === 409) failedAt = 2;
+    else failedAt = 3;
+
+    renderChain(Array(5).fill('').map((_, j) =>
+      j < failedAt ? 'done' : j === failedAt ? 'failed' : ''));
+
+    toast('Siparis olusmadi (HTTP ' + e.status + ')', e.message || 'Ayrinti icin gunluge bak', 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------
+// 4 · Siparisler
+// ---------------------------------------------------------------
+async function loadOrders(mine) {
+  if (mine && !token) { toast('Once giris yap', 'Kendi siparislerin icin token gerekli', 'err'); return; }
+  try {
+    const orders = await api('GET', mine ? '/api/orders/me' : '/api/orders', null, mine);
+    const el = document.getElementById('orderList');
+    if (!orders.length) { el.innerHTML = '<div class="empty">Henuz siparis yok.</div>'; return; }
+    el.innerHTML = `
+      <table>
+        <tr><th>#</th><th>Kullanici</th><th>Urun</th><th>Adet</th><th>Tutar</th></tr>
+        ${orders.slice().reverse().map(o => `
+          <tr>
+            <td class="num">${o.id}</td>
+            <td>${escapeHtml(o.username)}</td>
+            <td>${escapeHtml(o.productName)}</td>
+            <td class="num">${o.quantity}</td>
+            <td class="num">${o.totalPrice.toLocaleString('tr-TR')} TL</td>
+          </tr>`).join('')}
+      </table>`;
+  } catch (e) {
+    toast('Siparisler alinamadi (HTTP ' + e.status + ')', e.message, 'err');
+  }
+}
+
+// ---------------------------------------------------------------
+// 5 · Bildirimler
+// ---------------------------------------------------------------
+async function loadNotifications() {
+  try {
+    const list = await api('GET', '/api/notifications');
+    const el = document.getElementById('notifList');
+    if (!list.length) { el.innerHTML = '<div class="empty">Henuz bildirim yok.</div>'; return; }
+    el.innerHTML = list.slice().reverse().map(n => `
+      <div style="border-bottom:1px solid #212a3d; padding:9px 0">
+        <div style="font-size:12.5px">${escapeHtml(n.subject)}</div>
+        <div style="font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:2px">
+          ${escapeHtml(n.recipient)} · ${escapeHtml(n.message)}
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    document.getElementById('notifList').innerHTML =
+      '<div class="empty" style="color:var(--red)">Notification Service kapali gorunuyor (HTTP ' + e.status + ')</div>';
+  }
+}
+
+// ---------------------------------------------------------------
+// 6 · Hata senaryolari
+// ---------------------------------------------------------------
+async function testBadToken() {
+  const real = token;
+  token = 'sahte.token.degeri';
+  try {
+    await api('POST', '/api/orders', { productId: products[0]?.id || 1, quantity: 1 }, true);
+    toast('Beklenmedik', 'Gecersiz token kabul edildi!', 'err');
+  } catch (e) {
+    toast(e.status === 401 ? 'Beklendigi gibi: 401' : 'Beklenmedik kod: ' + e.status,
+      'Order Service, token dogrulamasi icin User Service e sordu ve reddedildi',
+      e.status === 401 ? 'ok' : 'err');
+  } finally { token = real; }
+}
+
+async function testNoProduct() {
+  if (!token) { toast('Once giris yap', '', 'err'); return; }
+  try {
+    await api('POST', '/api/orders', { productId: 999999, quantity: 1 }, true);
+    toast('Beklenmedik', 'Olmayan urun icin siparis olustu!', 'err');
+  } catch (e) {
+    toast(e.status === 404 ? 'Beklendigi gibi: 404' : 'Beklenmedik kod: ' + e.status,
+      'Product Service 404 dondu, Order Service bunu aynen istemciye yansitti',
+      e.status === 404 ? 'ok' : 'err');
+  }
+}
+
+async function testNoStock() {
+  if (!token) { toast('Once giris yap', '', 'err'); return; }
+  const p = products[0];
+  if (!p) { toast('Once urun ekle', '', 'err'); return; }
+  try {
+    await api('POST', '/api/orders', { productId: p.id, quantity: 999999 }, true);
+    toast('Beklenmedik', 'Stok yetmezken siparis olustu!', 'err');
+  } catch (e) {
+    toast(e.status === 409 ? 'Beklendigi gibi: 409' : 'Beklenmedik kod: ' + e.status,
+      'Stok korundu — siparis olusmadi', e.status === 409 ? 'ok' : 'err');
+    await loadProducts();
+  }
+}
+
+async function testBadQty() {
+  if (!token) { toast('Once giris yap', '', 'err'); return; }
+  try {
+    await api('POST', '/api/orders', { productId: products[0]?.id || 1, quantity: 0 }, true);
+    toast('Beklenmedik', 'Adet 0 kabul edildi!', 'err');
+  } catch (e) {
+    toast(e.status === 400 ? 'Beklendigi gibi: 400' : 'Beklenmedik kod: ' + e.status,
+      'Istek Order Service e hic ulasmadi — @Min(1) validasyonu engelledi',
+      e.status === 400 ? 'ok' : 'err');
+  }
+}
+
+// ---------------------------------------------------------------
+// Servis durumu
+// ---------------------------------------------------------------
+const SERVICES = [
+  { key: 'gateway',      label: 'api-gateway :8080',      probe: null },
+  { key: 'product',      label: 'product-service :8081',  probe: '/api/products' },
+  { key: 'user',         label: 'user-service :8082',     probe: '/api/auth/validate' },
+  { key: 'order',        label: 'order-service :8083',    probe: '/api/orders' },
+  { key: 'notification', label: 'notification-service :8084', probe: '/api/notifications' }
+];
+
+async function checkHealth() {
+  const el = document.getElementById('health');
+  const results = await Promise.all(SERVICES.map(async s => {
+    if (!s.probe) return { ...s, up: true };
+    try {
+      const res = await fetch(s.probe, { method: 'GET' });
+      // 502/503 = Gateway hedef servise ulasamadi. Diger her kod servisin AYAKTA oldugunu gosterir.
+      return { ...s, up: res.status !== 502 && res.status !== 503 && res.status !== 504 };
+    } catch {
+      return { ...s, up: false };
+    }
+  }));
+  el.innerHTML = results.map(r =>
+    `<span class="chip"><span class="dot ${r.up ? 'up' : 'down'}"></span>${r.label}</span>`
+  ).join('');
+}
+
+// ---------------------------------------------------------------
+// Yardimcilar
+// ---------------------------------------------------------------
+function val(id) { return document.getElementById(id).value.trim(); }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ---------------------------------------------------------------
+// Baslangic
+// ---------------------------------------------------------------
+(async function init() {
+  renderAuth();
+  renderChain(['', '', '', '', '']);
+  renderLog();
+  await checkHealth();
+  await loadProducts();
+  await loadNotifications();
+  setInterval(checkHealth, 15000);
+})();
+</script>
+
+</body>
+</html>

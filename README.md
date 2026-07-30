@@ -57,6 +57,29 @@ mikroservis mimarisi ornegi.
 | Konteyner | Docker, Docker Compose |
 | CI/CD | GitHub Actions, GHCR |
 
+## Web arayuzu
+
+Servisler ayaga kalktiktan sonra <http://localhost:8080> adresini tarayicida ac.
+
+API Gateway hem REST API'yi yonlendirir hem de bu kontrol panelini sunar (statik dosya olarak
+`api-gateway/src/main/resources/static/index.html`). Ayni adresten servis edildigi icin
+CORS yapilandirmasina gerek kalmaz.
+
+Panel sadece bir demo degil, mimariyi gormek icin tasarlandi:
+
+- **Servis durumu** — 5 servisin ayakta olup olmadigi ust seritte canli gosterilir
+- **Canli istek gunlugu** — her HTTP cagrisinin hangi mikroservise yonlendirildigi,
+  HTTP kodu ve suresi ile birlikte listelenir
+- **Siparis zinciri** — siparis olustururken sunucu tarafinda calisan 5 adim
+  (token dogrulama, urun sorgulama, stok dusurme, kayit, bildirim) adim adim isaretlenir;
+  hata olursa hangi adimda durdugu kirmizi ile gosterilir
+- **Kanit gosterimi** — siparis sonrasi stok degisimi ve olusan bildirim otomatik yenilenerek
+  servisler arasi cagrilarin gercekten calistigi dogrulanir
+- **Hata senaryolari** — gecersiz token (401), olmayan urun (404), yetersiz stok (409) ve
+  hatali adet (400) tek tikla denenebilir
+
+Arayuz bagimliliksiz tek bir HTML dosyasidir; `npm install` veya build adimi gerektirmez.
+
 ## Calistirma
 
 ### Secenek 1 — Docker Compose (onerilen)
