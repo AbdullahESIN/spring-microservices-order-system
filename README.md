@@ -1,5 +1,10 @@
 # Mikroservis Siparis Yonetim Sistemi
 
+[![CI](https://github.com/AbdullahESIN/spring-microservices-order-system/actions/workflows/ci.yml/badge.svg)](https://github.com/AbdullahESIN/spring-microservices-order-system/actions/workflows/ci.yml)
+[![Docker Image Yayinla](https://github.com/AbdullahESIN/spring-microservices-order-system/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/AbdullahESIN/spring-microservices-order-system/actions/workflows/docker-publish.yml)
+[![Java](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-brightgreen)](https://spring.io/projects/spring-boot)
+
 Spring Boot ile yazilmis, servisler arasi REST iletisimi ve CI/CD pratigi icin gelistirilmis
 mikroservis mimarisi ornegi.
 
