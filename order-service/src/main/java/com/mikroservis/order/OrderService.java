@@ -68,8 +68,18 @@ public class OrderService {
         log.info("Siparis olusturuldu: id={} toplam={}", saved.getId(), total);
 
         // 5) Bildirim (basarisiz olsa da siparis gecerli kalir)
-        notificationClient.sendOrderConfirmation(
-                user.email(), saved.getId(), product.name(), quantity, total);
+        //
+        // Buradaki try-catch, Resilience4j'nin fallback'i VARKEN bile bilincli olarak durur.
+        // Sebep: "bildirim hatasi siparisi bozmaz" bir IS KURALIDIR; bir anotasyonun
+        // dogru yapilandirilmis olmasina bagli birakilamaz. Resilience4j'nin katkisi
+        // farkli: cokmus servise istek atmayi tamamen keserek timeout beklemeyi onler.
+        try {
+            notificationClient.sendOrderConfirmation(
+                    user.email(), saved.getId(), product.name(), quantity, total);
+        } catch (Exception e) {
+            log.warn("Bildirim adimi basarisiz oldu, siparis {} yine de gecerli: {}",
+                    saved.getId(), e.getMessage());
+        }
 
         return saved;
     }

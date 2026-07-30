@@ -176,11 +176,72 @@ curl -X POST http://localhost:8080/api/orders \
 
 | Durum | Kod |
 |---|---|
+| Gecersiz veri (validasyon) | 400 |
 | Token gecersiz / eksik | 401 |
 | Urun bulunamadi | 404 |
 | Yetersiz stok | 409 |
 | Kullanici adi/e-posta zaten kayitli | 409 |
-| Product Service'e ulasilamiyor | 502 |
+| Karsi servise ulasilamiyor / devre acik | 503 |
+
+Tum hatalar ayni formatta doner ve **hangi servisten** ciktigini soyler:
+
+```json
+{
+  "timestamp": "2026-07-30T23:15:01",
+  "status": 409,
+  "error": "Conflict",
+  "message": "Yetersiz stok. Mevcut: 49, istenen: 999999",
+  "path": "/api/orders",
+  "service": "order-service",
+  "fieldErrors": null
+}
+```
+
+`message` alani onemlidir: Spring varsayilan olarak `ResponseStatusException`'daki aciklamayi
+govdeye koymaz, bu yuzden her serviste bir `@RestControllerAdvice` bulunur. Ayrica Order Service,
+Product Service'ten gelen aciklamayi yutmaz — oldugu gibi istemciye tasir.
+
+## Dayaniklilik (Resilience4j)
+
+Order Service'in diger servislere yaptigi her cagri bir **devre kesici** (circuit breaker)
+ile korunur. Mantik: son cagrilarin hata orani esigi asarsa devre acilir ve istekler
+karsi servise hic gonderilmez.
+
+| Cagri | Circuit breaker | Retry | Fallback |
+|---|---|---|---|
+| Token dogrulama | ✔ | ✘ | ✘ |
+| Urun bilgisi okuma | ✔ | ✔ | ✘ |
+| Stok dusurme | ✔ | **✘** | ✘ |
+| Bildirim gonderme | ✔ | ✔ | ✔ |
+
+Bu tablodaki her "✘" bilincli bir karardir:
+
+- **Token dogrulamada retry yok** — token gecersizse tekrar denemek ayni cevabi getirir.
+- **Stok dusurmede retry yok** — bu islem *idempotent degildir*. Istek karsiya ulasip cevap
+  donerken ag koparsa, tekrar denemek stogu **iki kez** dusurur. Boyle islemler ya hic tekrar
+  denenmez, ya da "idempotency key" ile korunur.
+- **Sadece bildirimde fallback var** — kritik olmayan tek adim odur. Kimlik veya stok
+  basarisiz olursa siparis olusmamalidir.
+
+### Hangi hata "ariza" sayilir?
+
+En kritik ayar budur. Devre kesici yalnizca `ServiceUnavailableException`'i ariza sayar:
+
+- Karsi servisin **404/409 donmesi ariza degildir** — servis saglikli, istegimiz hataliydi.
+  Bu ayrimi yapmazsan, kullanicilar olmayan urun aradigi icin devre acilir ve calisan bir
+  servise trafigi kesersin.
+- Sadece **ulasilamama / timeout / 5xx** ariza sayilir.
+
+### Devre durumunu izleme
+
+```bash
+curl http://localhost:8080/api/orders/circuits
+```
+
+Web arayuzundeki "Devre kesiciler" karti da ayni bilgiyi gosterir.
+Denemek icin Notification Service'i kapatip arka arkaya 4 siparis ver:
+devre `CLOSED` &rarr; `OPEN` olur, 15 saniye sonra `HALF_OPEN`'a geçer, basarili
+denemelerden sonra tekrar `CLOSED` olur. Bu sirada **siparisler basariyla olusmaya devam eder**.
 
 ## Testler
 
@@ -211,8 +272,9 @@ Testler H2 bellek-ici veritabani kullanir; calistirmak icin PostgreSQL gerekmez.
 - [x] JWT ile kimlik dogrulama
 - [x] Docker Compose ile tek komutla ayaga kalkma
 - [x] GitHub Actions ile CI/CD
+- [x] Web kontrol paneli
+- [x] Tutarli hata formati ve servisler arasi hata mesaji tasima
+- [x] Resilience4j ile circuit breaker ve retry
 - [ ] RabbitMQ ile asenkron bildirim (sync vs async farkini gormek icin)
-- [ ] Resilience4j ile circuit breaker ve retry
-- [ ] Service discovery (Eureka / Consul)
 - [ ] Prometheus + Grafana ile izleme
 - [ ] Kubernetes'e deploy

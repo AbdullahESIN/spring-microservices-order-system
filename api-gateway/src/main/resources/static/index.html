@@ -189,6 +189,14 @@
   }
   .note b { color: var(--text); font-weight: 600; }
 
+  .cb {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700;
+    padding: 2px 7px; border-radius: 4px; border: 1px solid;
+  }
+  .cb-CLOSED    { color: var(--green); border-color: #1d4636; background: #0c1a14; }
+  .cb-OPEN      { color: var(--red);   border-color: #5c2224; background: #240e0f; }
+  .cb-HALF_OPEN { color: var(--amber); border-color: #5c451a; background: #241c0c; }
+
   .full { grid-column: 1 / -1; }
   .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   @media (max-width: 820px) { .split { grid-template-columns: 1fr; } }
@@ -290,9 +298,29 @@
       <div id="notifList"></div>
     </div>
 
+    <!-- DEVRE KESICILER -->
+    <div class="card">
+      <h2>6 · Devre kesiciler <span class="svc">resilience4j</span></h2>
+      <p class="hint">
+        Bir servis surekli hata verirse devre <b>acilir</b> ve istekler ona hic gonderilmez —
+        cokmus servisi beklemek yerine aninda hata donulur.
+      </p>
+
+      <div class="row" style="margin-top:0">
+        <button class="ghost" onclick="loadCircuits()">Yenile</button>
+      </div>
+
+      <div id="circuitList"></div>
+
+      <div class="note">
+        <b>CLOSED</b> normal · <b>OPEN</b> istekler durduruldu · <b>HALF_OPEN</b> deneme izni veriliyor.<br>
+        Denemek icin: notification-service'i kapat, arka arkaya 4 siparis ver — devre acilir.
+      </div>
+    </div>
+
     <!-- HATA SENARYOLARI -->
     <div class="card">
-      <h2>6 · Hata senaryolari</h2>
+      <h2>7 · Hata senaryolari</h2>
       <p class="hint">Mikroserviste asil zor kisim hatalarin dogru kodla donmesi. Dene ve gunlukteki HTTP kodlarina bak.</p>
 
       <div class="row" style="margin-top:0; flex-direction:column; align-items:stretch">
@@ -580,6 +608,7 @@ async function createOrder() {
     }
     await loadNotifications();
     await loadOrders(true);
+    await loadCircuits();
 
   } catch (e) {
     // Hangi adimda dustugunu HTTP koduna bakarak tahmin edelim
@@ -646,7 +675,31 @@ async function loadNotifications() {
 }
 
 // ---------------------------------------------------------------
-// 6 · Hata senaryolari
+// 6 · Devre kesiciler
+// ---------------------------------------------------------------
+async function loadCircuits() {
+  const el = document.getElementById('circuitList');
+  try {
+    const list = await api('GET', '/api/orders/circuits');
+    if (!list.length) { el.innerHTML = '<div class="empty">Henuz devre olusmadi — bir siparis ver.</div>'; return; }
+    el.innerHTML = `
+      <table>
+        <tr><th>Devre</th><th>Durum</th><th>Hata orani</th><th>Cagri</th></tr>
+        ${list.map(c => `
+          <tr>
+            <td>${escapeHtml(c.name)}</td>
+            <td><span class="cb cb-${c.state}">${c.state}</span></td>
+            <td class="num">${c.failureRate < 0 ? '—' : c.failureRate.toFixed(0) + '%'}</td>
+            <td class="num">${c.failedCalls}/${c.bufferedCalls}${c.notPermittedCalls ? ' · ' + c.notPermittedCalls + ' engellendi' : ''}</td>
+          </tr>`).join('')}
+      </table>`;
+  } catch (e) {
+    el.innerHTML = '<div class="empty" style="color:var(--red)">Devre durumu alinamadi (HTTP ' + e.status + ')</div>';
+  }
+}
+
+// ---------------------------------------------------------------
+// 7 · Hata senaryolari
 // ---------------------------------------------------------------
 async function testBadToken() {
   const real = token;
@@ -747,6 +800,7 @@ function escapeHtml(s) {
   await checkHealth();
   await loadProducts();
   await loadNotifications();
+  await loadCircuits();
   setInterval(checkHealth, 15000);
 })();
 </script>

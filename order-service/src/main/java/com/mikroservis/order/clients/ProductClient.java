@@ -1,5 +1,7 @@
 package com.mikroservis.order.clients;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -28,27 +30,47 @@ public class ProductClient {
     public record StockRequest(int quantity) {
     }
 
+    /**
+     * Urun bilgisini okur.
+     *
+     * @Retry VAR: bu islem "idempotent" (ayni istegi 10 kez atsan da sonuc degismez).
+     * Gecici bir ag hatasinda tekrar denemek guvenlidir ve basari sansini artirir.
+     */
+    @CircuitBreaker(name = "productService")
+    @Retry(name = "productService")
     public ProductResponse getProduct(Long productId) {
         try {
             return client.get()
                     .uri("/api/products/{id}", productId)
                     .retrieve()
                     .body(ProductResponse.class);
+
         } catch (HttpClientErrorException.NotFound e) {
-            // Urun gercekten yok -> istemcinin hatasi, 404 dondur
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Urun bulunamadi: " + productId);
+
+        } catch (HttpClientErrorException e) {
+            String reason = DownstreamErrors.messageFrom(e, "Urun bilgisi alinamadi");
+            throw new ResponseStatusException(HttpStatus.valueOf(e.getStatusCode().value()), reason);
+
         } catch (RestClientException e) {
-            // Product Service cevap vermiyor/coktu -> bizim altyapi hatamiz, 502 dondur
-            log.error("Urun {} alinamadi: {}", productId, e.getMessage());
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "Product Service'e ulasilamadi");
+            log.error("Product Service'e ulasilamadi (urun {}): {}", productId, e.getMessage());
+            throw new ServiceUnavailableException("product-service",
+                    "Urun bilgisi alinamadi: Product Service'e ulasilamiyor", e);
         }
     }
 
     /**
-     * Stogu dusurur. Product Service stok yetmezse 409 doner; bunu asagida
-     * anlamli bir hata mesajina cevirip siparisi iptal ediyoruz.
+     * Stogu dusurur.
+     *
+     * @Retry YOK — ve bu bilincli bir karardir!
+     * Bu islem idempotent DEGILDIR: her cagri stogu bir kez daha dusurur.
+     * Istek karsi tarafa ulasip cevap donerken ag koparsa, biz hata sanip
+     * tekrar denersek stok IKI KEZ duser. Yani musteri 1 adet alir, stoktan 2 duser.
+     *
+     * Boyle islemlerde ya hic tekrar denenmez (buradaki secim), ya da
+     * "idempotency key" ile karsi tarafin ayni istegi iki kez islemesi engellenir.
      */
+    @CircuitBreaker(name = "productService")
     public ProductResponse reduceStock(Long productId, int quantity) {
         try {
             return client.post()
@@ -56,10 +78,18 @@ public class ProductClient {
                     .body(new StockRequest(quantity))
                     .retrieve()
                     .body(ProductResponse.class);
+
+        } catch (HttpClientErrorException e) {
+            // Product Service'in kendi aciklamasini aynen tasiyoruz
+            // ("Yetersiz stok. Mevcut: 7, istenen: 999" gibi)
+            String reason = DownstreamErrors.messageFrom(e, "Stok dusurulemedi");
+            log.warn("Stok dusurulemedi (urun {}): {}", productId, reason);
+            throw new ResponseStatusException(HttpStatus.valueOf(e.getStatusCode().value()), reason);
+
         } catch (RestClientException e) {
-            log.error("Stok dusurulemedi (urun {}): {}", productId, e.getMessage());
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Stok dusurulemedi: yetersiz stok olabilir");
+            log.error("Product Service'e ulasilamadi (urun {}): {}", productId, e.getMessage());
+            throw new ServiceUnavailableException("product-service",
+                    "Stok dusurulemedi: Product Service'e ulasilamiyor", e);
         }
     }
 }
